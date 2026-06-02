@@ -1,0 +1,121 @@
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[project]
+name = "pytest-mellea-semantic"
+version = "0.1.0"
+description = "Pytest-native semantic assertions powered by Mellea."
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+license = { text = "Apache-2.0" }
+keywords = ["pytest", "mellea", "semantic", "assertions", "llm", "testing"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Pytest",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "mellea>=0.6,<0.8",
+    "numpy>=1.24",
+    "ollama>=0.5.1",
+    "pytest>=8",
+]
+
+[project.urls]
+Homepage = "https://github.com/generative-computing/pytest-mellea-semantic"
+Issues = "https://github.com/generative-computing/pytest-mellea-semantic/issues"
+Documentation = "https://github.com/generative-computing/pytest-mellea-semantic#readme"
+
+[project.entry-points.pytest11]
+pytest-mellea-semantic = "pytest_mellea_semantic._plugin"
+
+[dependency-groups]
+dev = [
+    "codespell",
+    "mypy",
+    "pdm",
+    "pytest-asyncio",
+    "pytest-cov",
+    "ruff",
+]
+
+[tool.pdm.build]
+package-dir = "src"
+includes = ["src/pytest_mellea_semantic"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_default_fixture_loop_scope = "function"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=pytest_mellea_semantic",
+    "--cov-report=term-missing",
+]
+markers = [
+    "semantic: tests using pytest-mellea-semantic assertions",
+    "e2e: tests requiring a real backend or local service",
+    "ollama: tests requiring a running Ollama server",
+]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+pretty = true
+show_error_context = true
+mypy_path = "src"
+packages = ["pytest_mellea_semantic"]
+
+[[tool.mypy.overrides]]
+module = ["ollama.*", "mellea.*"]
+ignore_missing_imports = true
+
+[tool.coverage.run]
+branch = true
+source = ["pytest_mellea_semantic"]
+disable_warnings = ["module-not-measured"]
+
+[tool.coverage.report]
+show_missing = true
+precision = 2
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abc.abstractmethod",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "SIM", "RUF", "D"]
+extend-select = ["D417"]
+ignore = ["E501", "E402"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["D100", "D101", "D102", "D103", "D107"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+known-first-party = ["pytest_mellea_semantic"]
+
+[tool.codespell]
+ignore-words-list = "mellea"
+skip = "uv.lock,dist,build,.git,.venv"

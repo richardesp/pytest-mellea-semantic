@@ -1,0 +1,86 @@
+from _pytest.pytester import Pytester
+
+pytest_plugins = ["pytester"]
+
+
+def make_child_ini(pytester: Pytester, extra: str = "") -> None:
+    pytester.makeini(
+        f"""
+        [pytest]
+        asyncio_default_fixture_loop_scope = function
+        {extra}
+        """
+    )
+
+
+def test_plugin_registers_marker(pytester: Pytester) -> None:
+    make_child_ini(pytester)
+    pytester.makepyfile(
+        """
+        import pytest
+
+        @pytest.mark.semantic
+        def test_marked():
+            assert True
+        """
+    )
+
+    result = pytester.runpytest("--strict-markers")
+
+    result.assert_outcomes(passed=1)
+
+
+def test_plugin_applies_ini_configuration(pytester: Pytester) -> None:
+    make_child_ini(pytester, "mellea_semantic_threshold = 0.42")
+    pytester.makepyfile(
+        """
+        from pytest_mellea_semantic._runtime import get_config
+
+        def test_config():
+            assert get_config().threshold == 0.42
+        """
+    )
+
+    result = pytester.runpytest()
+
+    result.assert_outcomes(passed=1)
+
+
+def test_plugin_cli_overrides_ini_configuration(pytester: Pytester) -> None:
+    make_child_ini(pytester, "mellea_semantic_threshold = 0.42")
+    pytester.makepyfile(
+        """
+        from pytest_mellea_semantic._runtime import get_config
+
+        def test_config():
+            assert get_config().threshold == 0.91
+        """
+    )
+
+    result = pytester.runpytest("--mellea-semantic-threshold=0.91")
+
+    result.assert_outcomes(passed=1)
+
+
+def test_plugin_assertion_output_for_content(pytester: Pytester) -> None:
+    make_child_ini(pytester)
+    pytester.makepyfile(
+        """
+        from pytest_mellea_semantic import Content, EmbeddingEncoder
+
+        class Backend:
+            def embed(self, text):
+                return {"response": [1, 0], "expected": [0, 1]}[text]
+
+        def test_failure():
+            content = Content(
+                "response", threshold=0.7, encoder=EmbeddingEncoder(Backend())
+            )
+            assert "expected" in content
+        """
+    )
+
+    result = pytester.runpytest()
+
+    result.assert_outcomes(failed=1)
+    result.stdout.fnmatch_lines(["*Semantic Content assertion failed*"])
