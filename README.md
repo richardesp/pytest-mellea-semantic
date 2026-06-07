@@ -42,6 +42,7 @@ Pytest ini options:
 [pytest]
 mellea_semantic_threshold = 0.70
 mellea_semantic_encoder_model = nomic-embed-text:v1.5
+mellea_semantic_cache_size = 1024
 mellea_semantic_judge_backend = ollama
 mellea_semantic_judge_model = gemma4:e2b
 ```
@@ -52,7 +53,25 @@ CLI options with the same names are available using hyphens, for example:
 pytest --mellea-semantic-threshold=0.60
 ```
 
-Precedence is: constructor arguments, CLI/environment, ini configuration, defaults.
+The shared encoder caches normalized embeddings by exact input text using
+least-recently-used eviction. Its default capacity is 1024 entries. Set
+`mellea_semantic_cache_size = 0` to disable caching. The equivalent CLI option
+is `--mellea-semantic-cache-size`, and the environment variable is
+`MELLEA_SEMANTIC_CACHE_SIZE`.
+
+Shared runtime configuration precedence is CLI, environment, pytest ini, then
+package defaults. A custom encoder can set its own capacity independently and
+clear cached entries without changing its backend or configuration:
+
+```python
+from pytest_mellea_semantic import EmbeddingEncoder
+
+encoder = EmbeddingEncoder(max_cache_size=256)
+encoder.clear_cache()
+```
+
+Pass `max_cache_size=0` to a custom encoder to disable caching. Negative shared
+or custom capacities raise `ValueError`.
 
 ## Development
 

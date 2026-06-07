@@ -1,3 +1,4 @@
+import pytest
 from _pytest.pytester import Pytester
 
 pytest_plugins = ["pytester"]
@@ -31,13 +32,20 @@ def test_plugin_registers_marker(pytester: Pytester) -> None:
 
 
 def test_plugin_applies_ini_configuration(pytester: Pytester) -> None:
-    make_child_ini(pytester, "mellea_semantic_threshold = 0.42")
+    make_child_ini(
+        pytester,
+        """
+        mellea_semantic_threshold = 0.42
+        mellea_semantic_cache_size = 64
+        """,
+    )
     pytester.makepyfile(
         """
         from pytest_mellea_semantic._runtime import get_config
 
         def test_config():
             assert get_config().threshold == 0.42
+            assert get_config().cache_size == 64
         """
     )
 
@@ -58,6 +66,46 @@ def test_plugin_cli_overrides_ini_configuration(pytester: Pytester) -> None:
     )
 
     result = pytester.runpytest("--mellea-semantic-threshold=0.91")
+
+    result.assert_outcomes(passed=1)
+
+
+def test_plugin_environment_overrides_ini_cache_size(
+    pytester: Pytester,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MELLEA_SEMANTIC_CACHE_SIZE", "32")
+    make_child_ini(pytester, "mellea_semantic_cache_size = 64")
+    pytester.makepyfile(
+        """
+        from pytest_mellea_semantic._runtime import get_config
+
+        def test_config():
+            assert get_config().cache_size == 32
+        """
+    )
+
+    result = pytester.runpytest()
+
+    result.assert_outcomes(passed=1)
+
+
+def test_plugin_cli_overrides_environment_cache_size(
+    pytester: Pytester,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MELLEA_SEMANTIC_CACHE_SIZE", "32")
+    make_child_ini(pytester, "mellea_semantic_cache_size = 64")
+    pytester.makepyfile(
+        """
+        from pytest_mellea_semantic._runtime import get_config
+
+        def test_config():
+            assert get_config().cache_size == 16
+        """
+    )
+
+    result = pytester.runpytest("--mellea-semantic-cache-size=16")
 
     result.assert_outcomes(passed=1)
 

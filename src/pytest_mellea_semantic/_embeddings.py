@@ -1,10 +1,16 @@
-"""Embedding backends and cosine similarity helpers for content assertions."""
+"""Embedding backends and cosine similarity helpers for content assertions.
+
+Normalized vectors are cached by their exact input text. The default cache holds
+up to 1024 entries, while a capacity of zero disables caching.
+"""
 
 from __future__ import annotations
 
 import abc
-from typing import Protocol
+from collections import OrderedDict
+from typing import Protocol, cast
 
+from pytest_mellea_semantic._constants import DEFAULT_CACHE_SIZE
 from pytest_mellea_semantic._exceptions import SemanticAssertionRuntimeError
 
 
@@ -92,28 +98,61 @@ class OllamaEmbeddingBackend(EmbeddingBackend):
 
 
 class EmbeddingEncoder:
-    """Caching encoder that normalizes embeddings and computes cosine similarity.
+    """LRU-caching encoder for normalized embeddings and cosine similarity.
+
+    Cache keys preserve the exact input text, including whitespace and case.
+    Cache hits refresh entry recency, and the least-recently-used entry is
+    discarded when the configured capacity is exceeded.
 
     Args:
         backend: Embedding backend. Defaults to `OllamaEmbeddingBackend`.
+        max_cache_size: Maximum cached embeddings. Defaults to 1024. Set to zero
+            to disable caching.
+
+    Raises:
+        ValueError: If `max_cache_size` is negative.
     """
 
-    def __init__(self, backend: SupportsEmbed | None = None) -> None:
-        """Initialize the embedding encoder."""
+    def __init__(
+        self,
+        backend: SupportsEmbed | None = None,
+        *,
+        max_cache_size: int = DEFAULT_CACHE_SIZE,
+    ) -> None:
+        """Initialize an embedding encoder with a bounded LRU cache.
+
+        Args:
+            backend: Embedding backend. Defaults to `OllamaEmbeddingBackend`.
+            max_cache_size: Maximum cached embeddings. Zero disables caching.
+
+        Raises:
+            ValueError: If `max_cache_size` is negative.
+        """
+        if max_cache_size < 0:
+            raise ValueError("max_cache_size must be greater than or equal to zero")
+
         self._backend = backend or OllamaEmbeddingBackend()
-        self._cache: dict[str, list[float]] = {}
+        self._max_cache_size = max_cache_size
+        self._cache: OrderedDict[str, list[float]] = OrderedDict()
 
     @property
     def cache_size(self) -> int:
-        """Return the number of cached texts.
+        """Return the current number of cached exact-text entries.
 
         Returns:
             Number of cached normalized embeddings.
         """
         return len(self._cache)
 
+    def clear_cache(self) -> None:
+        """Remove all cached embeddings without changing encoder configuration."""
+        self._cache.clear()
+
     def encode(self, text: str) -> list[float]:
-        """Return a cached, L2-normalized vector for text.
+        """Return an L2-normalized vector, caching it by exact text when enabled.
+
+        A cache hit refreshes the entry's LRU recency. When insertion exceeds
+        `max_cache_size`, the least-recently-used entry is discarded.
 
         Args:
             text: Text to encode.
@@ -121,15 +160,26 @@ class EmbeddingEncoder:
         Returns:
             L2-normalized embedding vector.
         """
-        if text not in self._cache:
-            import numpy as np
+        if text in self._cache:
+            self._cache.move_to_end(text)
+            return self._cache[text]
 
-            raw = self._backend.embed(text)
-            vector = np.array(raw, dtype=np.float64)
-            norm = float(np.linalg.norm(vector))
-            normalized = (vector / norm).tolist() if norm > 0 else vector.tolist()
+        import numpy as np
+
+        raw = self._backend.embed(text)
+        vector = np.array(raw, dtype=np.float64)
+        norm = float(np.linalg.norm(vector))
+        normalized = cast(
+            list[float],
+            (vector / norm).tolist() if norm > 0 else vector.tolist(),
+        )
+
+        if self._max_cache_size > 0:
             self._cache[text] = normalized
-        return self._cache[text]
+            if len(self._cache) > self._max_cache_size:
+                self._cache.popitem(last=False)
+
+        return normalized
 
     def similarity(self, left: str, right: str) -> float:
         """Return cosine similarity between two texts.

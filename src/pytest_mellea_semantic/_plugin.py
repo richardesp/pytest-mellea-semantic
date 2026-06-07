@@ -7,16 +7,18 @@ from typing import Any
 
 import pytest
 
-from pytest_mellea_semantic._runtime import (
+from pytest_mellea_semantic._constants import (
+    DEFAULT_CACHE_SIZE,
     DEFAULT_ENCODER_MODEL,
     DEFAULT_JUDGE_BACKEND,
     DEFAULT_JUDGE_MODEL,
     DEFAULT_THRESHOLD,
-    configure,
 )
+from pytest_mellea_semantic._runtime import configure
 
 ENV_THRESHOLD = "MELLEA_SEMANTIC_THRESHOLD"
 ENV_ENCODER_MODEL = "MELLEA_SEMANTIC_ENCODER_MODEL"
+ENV_CACHE_SIZE = "MELLEA_SEMANTIC_CACHE_SIZE"
 ENV_OLLAMA_HOST = "MELLEA_SEMANTIC_OLLAMA_HOST"
 ENV_JUDGE_BACKEND = "MELLEA_SEMANTIC_JUDGE_BACKEND"
 ENV_JUDGE_MODEL = "MELLEA_SEMANTIC_JUDGE_MODEL"
@@ -41,6 +43,13 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         action="store",
         default=None,
         help="Ollama embedding model used by Content assertions.",
+    )
+    group.addoption(
+        "--mellea-semantic-cache-size",
+        action="store",
+        type=int,
+        default=None,
+        help="Maximum embeddings cached by the shared encoder; zero disables caching.",
     )
     group.addoption(
         "--mellea-semantic-ollama-host",
@@ -70,6 +79,11 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "mellea_semantic_encoder_model",
         default=DEFAULT_ENCODER_MODEL,
         help="Ollama embedding model used by Content assertions.",
+    )
+    parser.addini(
+        "mellea_semantic_cache_size",
+        default=str(DEFAULT_CACHE_SIZE),
+        help="Maximum embeddings cached by the shared encoder; zero disables caching.",
     )
     parser.addini(
         "mellea_semantic_ollama_host",
@@ -168,6 +182,13 @@ def _config_from_pytest(config: pytest.Config) -> dict[str, Any]:
             ini_name="mellea_semantic_encoder_model",
             default=DEFAULT_ENCODER_MODEL,
         ),
+        "cache_size": _resolve_int(
+            config,
+            cli_name="mellea_semantic_cache_size",
+            env_name=ENV_CACHE_SIZE,
+            ini_name="mellea_semantic_cache_size",
+            default=DEFAULT_CACHE_SIZE,
+        ),
         "ollama_host": _resolve_optional_str(
             config,
             cli_name="mellea_semantic_ollama_host",
@@ -219,6 +240,36 @@ def _resolve_float(
         return float(env_value)
     ini_value = config.getini(ini_name)
     return float(ini_value or default)
+
+
+def _resolve_int(
+    config: pytest.Config,
+    *,
+    cli_name: str,
+    env_name: str,
+    ini_name: str,
+    default: int,
+) -> int:
+    """Resolve an integer from CLI, environment, ini, or default.
+
+    Args:
+        config: Active pytest configuration.
+        cli_name: Pytest option destination name.
+        env_name: Environment variable name.
+        ini_name: Pytest ini option name.
+        default: Default value.
+
+    Returns:
+        Resolved integer.
+    """
+    cli_value = config.getoption(cli_name, default=None)
+    if cli_value is not None:
+        return int(cli_value)
+    env_value = os.environ.get(env_name)
+    if env_value:
+        return int(env_value)
+    ini_value = config.getini(ini_name)
+    return int(ini_value or default)
 
 
 def _resolve_str(
