@@ -64,6 +64,11 @@ description = "Run the full test suite with pytest"
 depends = ["setup"]
 run = "uv run pytest"
 
+[tasks."tests-cov"]
+description = "Run the full test suite with coverage report"
+depends = ["setup"]
+run = "uv run pytest --cov=pytest_mellea --cov-report=term-missing"
+
 # ---------------------------
 # Build / packaging
 # ---------------------------
