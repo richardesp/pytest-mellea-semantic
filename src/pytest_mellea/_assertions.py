@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from pytest_mellea_semantic._embeddings import EmbeddingEncoder
-from pytest_mellea_semantic._runtime import (
-    DEFAULT_JUDGE_MODEL_OPTIONS,
+from pytest_mellea._constants import DEFAULT_JUDGE_MODEL_OPTIONS
+from pytest_mellea._embeddings import EmbeddingEncoder
+from pytest_mellea._runtime import (
     get_config,
     get_encoder,
     get_judge_session,
@@ -45,9 +45,10 @@ class Content:
         Returns:
             `True` when similarity is greater than or equal to the active threshold.
         """
+        self._last_expected = expected
+        self._last_similarity = None
         encoder = self.encoder or get_encoder()
         threshold = self.active_threshold
-        self._last_expected = expected
         self._last_similarity = encoder.similarity(self.response, expected)
         return self._last_similarity >= threshold
 
@@ -83,8 +84,8 @@ class Content:
         return clean if len(clean) <= limit else f"{clean[: limit - 3]}..."
 
 
-class Behaviour:
-    """Semantic behaviour assertion wrapper using Mellea LLM-as-a-judge.
+class Behavior:
+    """Semantic behavior assertion wrapper using Mellea LLM-as-a-judge.
 
     Args:
         response: LLM response text to validate.
@@ -100,7 +101,7 @@ class Behaviour:
         session: Any | None = None,
         model_options: dict[str, Any] | None = None,
     ) -> None:
-        """Initialize the behaviour assertion wrapper."""
+        """Initialize the behavior assertion wrapper."""
         self.response = response
         self.session = session
         self.model_options = {
@@ -112,20 +113,23 @@ class Behaviour:
         self._last_requirement: str | None = None
 
     def __contains__(self, expected: str) -> bool:
-        """Return whether the response exhibits the expected behaviour.
+        """Return whether the response exhibits the expected behavior.
 
         Args:
-            expected: Behaviour phrase to judge.
+            expected: Behavior phrase to judge.
 
         Returns:
             `True` when Mellea's judge requirement passes.
         """
+        self._last_expected = expected
+        self._last_requirement = None
+        self._last_reason = None
+
         from mellea.core import ModelOutputThunk
         from mellea.stdlib.requirements import LLMaJRequirement
 
         session = self.session or get_judge_session()
-        requirement_text = f'The response exhibits the behaviour "{expected}".'
-        self._last_expected = expected
+        requirement_text = f'The response exhibits the behavior "{expected}".'
         self._last_requirement = requirement_text
         results = session.validate(
             [LLMaJRequirement(requirement_text)],
@@ -143,4 +147,4 @@ class Behaviour:
         Returns:
             Short representation with a truncated response preview.
         """
-        return f"Behaviour({Content._preview(self.response)!r})"
+        return f"Behavior({Content._preview(self.response)!r})"

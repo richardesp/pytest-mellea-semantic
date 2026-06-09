@@ -1,6 +1,10 @@
 import math
+from types import SimpleNamespace
 
-from pytest_mellea_semantic import EmbeddingEncoder
+import ollama
+import pytest
+
+from pytest_mellea import EmbeddingEncoder, OllamaEmbeddingBackend
 
 
 class FakeBackend:
@@ -8,6 +12,8 @@ class FakeBackend:
         self.calls: list[str] = []
         self.vectors = {
             "redis": [3.0, 4.0],
+            "Redis": [3.0, 4.0],
+            "redis ": [3.0, 4.0],
             "cache": [6.0, 8.0],
             "orthogonal": [-4.0, 3.0],
         }
@@ -15,6 +21,27 @@ class FakeBackend:
     def embed(self, text: str) -> list[float]:
         self.calls.append(text)
         return self.vectors[text]
+
+
+def test_ollama_backend_uses_granite_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str]] = []
+
+    class FakeClient:
+        def __init__(self, host: str | None = None) -> None:
+            assert host is None
+
+        def embed(self, *, model: str, input: str) -> SimpleNamespace:
+            calls.append((model, input))
+            return SimpleNamespace(embeddings=[[1.0, 0.0]])
+
+    monkeypatch.setattr(ollama, "Client", FakeClient)
+
+    backend = OllamaEmbeddingBackend()
+    backend.embed("redis")
+
+    assert calls == [("granite-embedding:278m", "redis")]
 
 
 def test_encoder_normalizes_vectors() -> None:
@@ -32,6 +59,63 @@ def test_encoder_caches_by_text() -> None:
 
     assert backend.calls == ["redis"]
     assert encoder.cache_size == 1
+
+
+def test_encoder_uses_exact_text_cache_keys() -> None:
+    backend = FakeBackend()
+    encoder = EmbeddingEncoder(backend=backend)
+
+    encoder.encode("redis")
+    encoder.encode("Redis")
+    encoder.encode("redis ")
+
+    assert backend.calls == ["redis", "Redis", "redis "]
+    assert encoder.cache_size == 3
+
+
+def test_encoder_evicts_least_recently_used_entry() -> None:
+    backend = FakeBackend()
+    encoder = EmbeddingEncoder(backend=backend, max_cache_size=2)
+
+    encoder.encode("redis")
+    encoder.encode("cache")
+    encoder.encode("redis")
+    encoder.encode("orthogonal")
+    encoder.encode("cache")
+
+    assert backend.calls == ["redis", "cache", "orthogonal", "cache"]
+    assert encoder.cache_size == 2
+
+
+def test_encoder_zero_capacity_disables_caching() -> None:
+    backend = FakeBackend()
+    encoder = EmbeddingEncoder(backend=backend, max_cache_size=0)
+
+    encoder.encode("redis")
+    encoder.encode("redis")
+
+    assert backend.calls == ["redis", "redis"]
+    assert encoder.cache_size == 0
+
+
+def test_encoder_clear_cache_forces_reembedding() -> None:
+    backend = FakeBackend()
+    encoder = EmbeddingEncoder(backend=backend)
+
+    encoder.encode("redis")
+    encoder.clear_cache()
+    encoder.encode("redis")
+
+    assert backend.calls == ["redis", "redis"]
+    assert encoder.cache_size == 1
+
+
+def test_encoder_rejects_negative_cache_capacity() -> None:
+    with pytest.raises(
+        ValueError,
+        match="max_cache_size must be greater than or equal to zero",
+    ):
+        EmbeddingEncoder(backend=FakeBackend(), max_cache_size=-1)
 
 
 def test_similarity_uses_cosine_dot_product() -> None:

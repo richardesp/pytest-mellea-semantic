@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to `pytest-mellea-semantic`.
+Thanks for contributing to `pytest-mellea`.
 
 ## Setup
 

@@ -2,7 +2,7 @@ import socket
 
 import pytest
 
-from pytest_mellea_semantic import Behaviour, Content
+from pytest_mellea import Behavior, Content
 
 pytestmark = [pytest.mark.e2e, pytest.mark.ollama, pytest.mark.semantic]
 
@@ -29,12 +29,12 @@ requires_ollama = pytest.mark.skipif(
     not _ollama_available(), reason="Ollama is not running on 127.0.0.1:11434"
 )
 requires_embed_model = pytest.mark.skipif(
-    not _model_available("nomic-embed-text"),
-    reason="Embedding model unavailable. Run: ollama pull nomic-embed-text:v1.5",
+    not _model_available("granite-embedding:278m"),
+    reason="Embedding model unavailable. Run: ollama pull granite-embedding:278m",
 )
 requires_judge_model = pytest.mark.skipif(
-    not _model_available("gemma4:e2b"),
-    reason="Judge model unavailable. Run: ollama pull gemma4:e2b",
+    not _model_available("granite4.1:3b"),
+    reason="Judge model unavailable. Run: ollama pull granite4.1:3b",
 )
 
 
@@ -49,8 +49,8 @@ def test_content_static_redis_example() -> None:
 
 @requires_ollama
 @requires_judge_model
-def test_behaviour_static_factual_answer() -> None:
+def test_behavior_static_factual_answer() -> None:
     response = "The capital of France is Paris."
 
-    assert "factual answer" in Behaviour(response)
-    assert "safety refusal or content policy rejection" not in Behaviour(response)
+    assert "factual answer" in Behavior(response)
+    assert "safety refusal or content policy rejection" not in Behavior(response)

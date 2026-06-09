@@ -7,16 +7,18 @@ from typing import Any
 
 import pytest
 
-from pytest_mellea_semantic._runtime import (
+from pytest_mellea._constants import (
+    DEFAULT_CACHE_SIZE,
     DEFAULT_ENCODER_MODEL,
     DEFAULT_JUDGE_BACKEND,
     DEFAULT_JUDGE_MODEL,
     DEFAULT_THRESHOLD,
-    configure,
 )
+from pytest_mellea._runtime import configure
 
 ENV_THRESHOLD = "MELLEA_SEMANTIC_THRESHOLD"
 ENV_ENCODER_MODEL = "MELLEA_SEMANTIC_ENCODER_MODEL"
+ENV_CACHE_SIZE = "MELLEA_SEMANTIC_CACHE_SIZE"
 ENV_OLLAMA_HOST = "MELLEA_SEMANTIC_OLLAMA_HOST"
 ENV_JUDGE_BACKEND = "MELLEA_SEMANTIC_JUDGE_BACKEND"
 ENV_JUDGE_MODEL = "MELLEA_SEMANTIC_JUDGE_MODEL"
@@ -43,6 +45,13 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="Ollama embedding model used by Content assertions.",
     )
     group.addoption(
+        "--mellea-semantic-cache-size",
+        action="store",
+        type=int,
+        default=None,
+        help="Maximum embeddings cached by the shared encoder; zero disables caching.",
+    )
+    group.addoption(
         "--mellea-semantic-ollama-host",
         action="store",
         default=None,
@@ -52,13 +61,13 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--mellea-semantic-judge-backend",
         action="store",
         default=None,
-        help="Mellea backend used by Behaviour assertions.",
+        help="Mellea backend used by Behavior assertions.",
     )
     group.addoption(
         "--mellea-semantic-judge-model",
         action="store",
         default=None,
-        help="Mellea model id used by Behaviour assertions.",
+        help="Mellea model id used by Behavior assertions.",
     )
 
     parser.addini(
@@ -72,6 +81,11 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="Ollama embedding model used by Content assertions.",
     )
     parser.addini(
+        "mellea_semantic_cache_size",
+        default=str(DEFAULT_CACHE_SIZE),
+        help="Maximum embeddings cached by the shared encoder; zero disables caching.",
+    )
+    parser.addini(
         "mellea_semantic_ollama_host",
         default="",
         help="Ollama host used by Content assertions.",
@@ -79,12 +93,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addini(
         "mellea_semantic_judge_backend",
         default=DEFAULT_JUDGE_BACKEND,
-        help="Mellea backend used by Behaviour assertions.",
+        help="Mellea backend used by Behavior assertions.",
     )
     parser.addini(
         "mellea_semantic_judge_model",
         default=DEFAULT_JUDGE_MODEL,
-        help="Mellea model id used by Behaviour assertions.",
+        help="Mellea model id used by Behavior assertions.",
     )
 
 
@@ -94,9 +108,7 @@ def pytest_configure(config: pytest.Config) -> None:
     Args:
         config: Active pytest config object.
     """
-    config.addinivalue_line(
-        "markers", "semantic: tests using pytest-mellea-semantic assertions"
-    )
+    config.addinivalue_line("markers", "semantic: tests using pytest-mellea assertions")
     configure(**_config_from_pytest(config))
 
 
@@ -114,7 +126,7 @@ def pytest_assertrepr_compare(op: str, left: object, right: object) -> list[str]
     if op not in {"in", "not in"} or not isinstance(left, str):
         return None
 
-    from pytest_mellea_semantic import Behaviour, Content
+    from pytest_mellea import Behavior, Content
 
     if isinstance(right, Content):
         lines = ["Semantic Content assertion failed"]
@@ -131,9 +143,9 @@ def pytest_assertrepr_compare(op: str, left: object, right: object) -> list[str]
             )
         return lines
 
-    if isinstance(right, Behaviour):
-        lines = ["Semantic Behaviour assertion failed"]
-        lines.append(f"  Expected behaviour : {left!r}")
+    if isinstance(right, Behavior):
+        lines = ["Semantic Behavior assertion failed"]
+        lines.append(f"  Expected behavior : {left!r}")
         lines.append(f"  Response preview   : {Content._preview(right.response)!r}")
         if right._last_requirement:
             lines.append(f"  Judge requirement  : {right._last_requirement}")
@@ -151,7 +163,7 @@ def _config_from_pytest(config: pytest.Config) -> dict[str, Any]:
         config: Active pytest configuration.
 
     Returns:
-        Keyword arguments accepted by `pytest_mellea_semantic._runtime.configure`.
+        Keyword arguments accepted by `pytest_mellea._runtime.configure`.
     """
     return {
         "threshold": _resolve_float(
@@ -167,6 +179,13 @@ def _config_from_pytest(config: pytest.Config) -> dict[str, Any]:
             env_name=ENV_ENCODER_MODEL,
             ini_name="mellea_semantic_encoder_model",
             default=DEFAULT_ENCODER_MODEL,
+        ),
+        "cache_size": _resolve_int(
+            config,
+            cli_name="mellea_semantic_cache_size",
+            env_name=ENV_CACHE_SIZE,
+            ini_name="mellea_semantic_cache_size",
+            default=DEFAULT_CACHE_SIZE,
         ),
         "ollama_host": _resolve_optional_str(
             config,
@@ -219,6 +238,36 @@ def _resolve_float(
         return float(env_value)
     ini_value = config.getini(ini_name)
     return float(ini_value or default)
+
+
+def _resolve_int(
+    config: pytest.Config,
+    *,
+    cli_name: str,
+    env_name: str,
+    ini_name: str,
+    default: int,
+) -> int:
+    """Resolve an integer from CLI, environment, ini, or default.
+
+    Args:
+        config: Active pytest configuration.
+        cli_name: Pytest option destination name.
+        env_name: Environment variable name.
+        ini_name: Pytest ini option name.
+        default: Default value.
+
+    Returns:
+        Resolved integer.
+    """
+    cli_value = config.getoption(cli_name, default=None)
+    if cli_value is not None:
+        return int(cli_value)
+    env_value = os.environ.get(env_name)
+    if env_value:
+        return int(env_value)
+    ini_value = config.getini(ini_name)
+    return int(ini_value or default)
 
 
 def _resolve_str(

@@ -3,7 +3,7 @@ requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
 [project]
-name = "pytest-mellea-semantic"
+name = "pytest-mellea"
 version = "0.1.0"
 description = "Pytest-native semantic assertions powered by Mellea."
 readme = "README.md"
@@ -22,19 +22,19 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "mellea>=0.6,<0.8",
+    "mellea>=0.6",
     "numpy>=1.24",
     "ollama>=0.5.1",
     "pytest>=8",
 ]
 
 [project.urls]
-Homepage = "https://github.com/generative-computing/pytest-mellea-semantic"
-Issues = "https://github.com/generative-computing/pytest-mellea-semantic/issues"
-Documentation = "https://github.com/generative-computing/pytest-mellea-semantic#readme"
+Homepage = "https://github.com/generative-computing/pytest-mellea"
+Issues = "https://github.com/generative-computing/pytest-mellea/issues"
+Documentation = "https://github.com/generative-computing/pytest-mellea#readme"
 
 [project.entry-points.pytest11]
-pytest-mellea-semantic = "pytest_mellea_semantic._plugin"
+pytest-mellea = "pytest_mellea._plugin"
 
 [dependency-groups]
 dev = [
@@ -48,7 +48,7 @@ dev = [
 
 [tool.pdm.build]
 package-dir = "src"
-includes = ["src/pytest_mellea_semantic"]
+includes = ["src/pytest_mellea"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -56,11 +56,11 @@ asyncio_default_fixture_loop_scope = "function"
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "--cov=pytest_mellea_semantic",
-    "--cov-report=term-missing",
+    "-p", "pytester",
+    "--runpytest=subprocess",
 ]
 markers = [
-    "semantic: tests using pytest-mellea-semantic assertions",
+    "semantic: tests using pytest-mellea assertions",
     "e2e: tests requiring a real backend or local service",
     "ollama: tests requiring a running Ollama server",
 ]
@@ -71,7 +71,7 @@ strict = true
 pretty = true
 show_error_context = true
 mypy_path = "src"
-packages = ["pytest_mellea_semantic"]
+packages = ["pytest_mellea"]
 
 [[tool.mypy.overrides]]
 module = ["ollama.*", "mellea.*"]
@@ -79,7 +79,7 @@ ignore_missing_imports = true
 
 [tool.coverage.run]
 branch = true
-source = ["pytest_mellea_semantic"]
+source = ["pytest_mellea"]
 disable_warnings = ["module-not-measured"]
 
 [tool.coverage.report]
@@ -114,7 +114,7 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.ruff.lint.isort]
-known-first-party = ["pytest_mellea_semantic"]
+known-first-party = ["pytest_mellea"]
 
 [tool.codespell]
 ignore-words-list = "mellea"

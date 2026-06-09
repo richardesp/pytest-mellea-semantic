@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Any, Literal, cast
+from typing import Any
 
-from pytest_mellea_semantic._embeddings import EmbeddingEncoder, OllamaEmbeddingBackend
-
-DEFAULT_THRESHOLD = 0.70
-DEFAULT_ENCODER_MODEL = "nomic-embed-text:v1.5"
-DEFAULT_JUDGE_BACKEND = "ollama"
-DEFAULT_JUDGE_MODEL = "gemma4:e2b"
-DEFAULT_JUDGE_MODEL_OPTIONS: dict[str, Any] = {"temperature": 0}
-BackendName = Literal["ollama", "hf", "openai", "watsonx", "litellm"]
+from pytest_mellea._constants import (
+    DEFAULT_CACHE_SIZE,
+    DEFAULT_ENCODER_MODEL,
+    DEFAULT_JUDGE_BACKEND,
+    DEFAULT_JUDGE_MODEL,
+    DEFAULT_JUDGE_MODEL_OPTIONS,
+    DEFAULT_THRESHOLD,
+)
+from pytest_mellea._embeddings import EmbeddingEncoder, OllamaEmbeddingBackend
 
 
 @dataclass(frozen=True)
@@ -22,16 +23,27 @@ class SemanticConfig:
     Args:
         threshold: Default cosine similarity threshold for `Content`.
         encoder_model: Ollama embedding model for `Content`.
+        cache_size: Maximum embeddings held by the shared encoder. Zero disables
+            caching.
         ollama_host: Optional Ollama host for the embedding client.
-        judge_backend: Mellea backend name for `Behaviour`.
-        judge_model: Mellea model id for `Behaviour`.
+        judge_backend: Mellea backend name for `Behavior`.
+        judge_model: Mellea model id for `Behavior`.
+
+    Raises:
+        ValueError: If `cache_size` is negative.
     """
 
     threshold: float = DEFAULT_THRESHOLD
     encoder_model: str = DEFAULT_ENCODER_MODEL
+    cache_size: int = DEFAULT_CACHE_SIZE
     ollama_host: str | None = None
     judge_backend: str = DEFAULT_JUDGE_BACKEND
     judge_model: str = DEFAULT_JUDGE_MODEL
+
+    def __post_init__(self) -> None:
+        """Validate runtime configuration values."""
+        if self.cache_size < 0:
+            raise ValueError("cache_size must be greater than or equal to zero")
 
 
 _config = SemanticConfig()
@@ -64,6 +76,7 @@ def configure(**overrides: Any) -> SemanticConfig:
 
     if (
         previous.encoder_model != _config.encoder_model
+        or previous.cache_size != _config.cache_size
         or previous.ollama_host != _config.ollama_host
     ):
         _encoder = None
@@ -97,7 +110,10 @@ def get_encoder() -> EmbeddingEncoder:
         backend = OllamaEmbeddingBackend(
             model_id=config.encoder_model, host=config.ollama_host
         )
-        _encoder = EmbeddingEncoder(backend=backend)
+        _encoder = EmbeddingEncoder(
+            backend=backend,
+            max_cache_size=config.cache_size,
+        )
     return _encoder
 
 
@@ -105,16 +121,16 @@ def get_judge_session() -> Any:
     """Return the lazily-created default Mellea judge session.
 
     Returns:
-        Shared Mellea session for behaviour assertions.
+        Shared Mellea session for behavior assertions.
     """
     global _judge_session
     if _judge_session is None:
         from mellea import start_session
 
         config = get_config()
-        backend_name = cast(BackendName, config.judge_backend)
+        # Mellea owns backend validation; its closed annotation may lag new backends.
         _judge_session = start_session(
-            backend_name=backend_name,
+            backend_name=config.judge_backend,  # type: ignore[arg-type]
             model_id=config.judge_model,
             model_options=DEFAULT_JUDGE_MODEL_OPTIONS,
         )

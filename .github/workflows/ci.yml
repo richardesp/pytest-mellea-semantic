@@ -26,6 +26,19 @@ jobs:
       - name: Run tests
         run: mise run tests
 
+  tests-mellea-main:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: Install dependencies
+        run: uv sync --dev
+      - name: Override mellea to main
+        run: uv pip install --reinstall "mellea @ git+https://github.com/generative-computing/mellea.git@main"
+      - name: Run tests
+        run: uv run pytest
+
   build:
     runs-on: ubuntu-latest
     steps:
