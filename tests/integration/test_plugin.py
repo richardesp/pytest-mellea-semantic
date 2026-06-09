@@ -153,6 +153,35 @@ def test_plugin_assertion_output_for_content(pytester: Pytester) -> None:
     result.stdout.fnmatch_lines(["*Semantic Content assertion failed*"])
 
 
+def test_plugin_assertion_output_for_content_not_in(pytester: Pytester) -> None:
+    make_child_ini(pytester)
+    pytester.makepyfile(
+        """
+        from pytest_mellea import Content, EmbeddingEncoder
+
+        class Backend:
+            def embed(self, text):
+                return {"response": [1, 0], "expected": [1, 0]}[text]
+
+        def test_failure():
+            content = Content(
+                "response", threshold=0.7, encoder=EmbeddingEncoder(Backend())
+            )
+            assert "expected" not in content
+        """
+    )
+
+    result = pytester.runpytest()
+
+    result.assert_outcomes(failed=1)
+    result.stdout.fnmatch_lines(
+        [
+            "*Semantic Content assertion failed*",
+            "*score is above threshold for operator 'not in'*",
+        ]
+    )
+
+
 def test_plugin_assertion_output_for_behavior(pytester: Pytester) -> None:
     make_child_ini(pytester)
     pytester.makepyfile(
