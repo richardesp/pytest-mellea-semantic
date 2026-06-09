@@ -11,6 +11,7 @@ from pytest_mellea._runtime import (
     configure,
     get_config,
     get_encoder,
+    get_judge_session,
     reset_runtime,
 )
 
@@ -41,6 +42,25 @@ def test_configure_updates_values() -> None:
     assert config.threshold == 0.82
     assert config.encoder_model == "custom-embed"
     assert config.cache_size == 256
+
+
+def test_judge_backend_is_passed_to_mellea(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mellea
+
+    received: dict[str, object] = {}
+    expected_session = object()
+
+    def fake_start_session(**kwargs: object) -> object:
+        received.update(kwargs)
+        return expected_session
+
+    monkeypatch.setattr(mellea, "start_session", fake_start_session)
+    configure(judge_backend="future-backend")
+
+    assert get_judge_session() is expected_session
+    assert received["backend_name"] == "future-backend"
 
 
 def test_cache_size_change_recreates_shared_encoder(

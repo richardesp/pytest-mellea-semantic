@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Any, Literal, cast
+from typing import Any
 
 from pytest_mellea._constants import (
     DEFAULT_CACHE_SIZE,
@@ -14,8 +14,6 @@ from pytest_mellea._constants import (
     DEFAULT_THRESHOLD,
 )
 from pytest_mellea._embeddings import EmbeddingEncoder, OllamaEmbeddingBackend
-
-BackendName = Literal["ollama", "hf", "openai", "watsonx", "litellm"]
 
 
 @dataclass(frozen=True)
@@ -130,9 +128,9 @@ def get_judge_session() -> Any:
         from mellea import start_session
 
         config = get_config()
-        backend_name = cast(BackendName, config.judge_backend)
+        # Mellea owns backend validation; its closed annotation may lag new backends.
         _judge_session = start_session(
-            backend_name=backend_name,
+            backend_name=config.judge_backend,  # type: ignore[arg-type]
             model_id=config.judge_model,
             model_options=DEFAULT_JUDGE_MODEL_OPTIONS,
         )
